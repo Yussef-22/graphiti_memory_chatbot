@@ -1,0 +1,25 @@
+name: graphiti-chatbot
+
+services:
+  falkordb:
+    image: falkordb/falkordb:v4.20.3
+    container_name: graphiti-falkordb
+    ports:
+      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:3000:3000"
+    environment:
+      REDIS_ARGS: "--appendonly yes --appendfsync everysec"
+      FALKORDB_ARGS: "THREAD_COUNT 4"
+    volumes:
+      - falkordb_data:/var/lib/falkordb/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:
+    name: graphiti-chatbot-falkordb-data
