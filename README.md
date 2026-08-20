@@ -5,14 +5,14 @@ Graphiti y FalkorDB.
 
 ## Estado del proyecto
 
-Fase 1: base modular de FastAPI con configuración tipada, endpoint de salud y
-pruebas automatizadas.
+Fase 2 en progreso: base modular de FastAPI, FalkorDB persistente mediante
+Docker Compose y comprobación de disponibilidad de la base desde la API.
 
 ## Requisitos
 
-- Python 3.12
+- Python 3.11 o superior
 - Git
-- Docker Desktop (se utilizará desde la Fase 2)
+- Docker Desktop con WSL 2
 
 ## Instalación en Windows PowerShell
 
@@ -41,6 +41,7 @@ Después abre:
 
 - API: http://localhost:8000
 - Health check: http://localhost:8000/health
+- Readiness check: http://localhost:8000/ready
 - Documentación Swagger: http://localhost:8000/docs
 
 ## Ejecutar las pruebas
@@ -48,6 +49,32 @@ Después abre:
 ```powershell
 pytest
 ```
+
+## Ejecutar FalkorDB
+
+Con Docker Desktop abierto y su motor en ejecución:
+
+```powershell
+docker compose config
+docker compose up -d
+docker compose ps
+```
+
+Después abre FalkorDB Browser en http://localhost:3000.
+
+La API distingue dos verificaciones:
+
+- `/health`: confirma que el proceso de FastAPI está vivo.
+- `/ready`: confirma que FastAPI también puede comunicarse con FalkorDB.
+
+Para detener el contenedor sin eliminar los datos:
+
+```powershell
+docker compose down
+```
+
+> No uses `docker compose down -v` salvo que quieras eliminar también el
+> volumen y todos los datos almacenados en FalkorDB.
 
 ## Estructura actual
 
@@ -68,4 +95,3 @@ tests/          # Pruebas automatizadas
 3. Integrar Graphiti y crear sus índices.
 4. Implementar `/chat` y la memoria por usuario.
 5. Construir la demostración temporal y documentar trade-offs.
-

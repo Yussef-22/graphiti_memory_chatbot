@@ -13,3 +13,10 @@ class HealthResponse(BaseModel):
     version: str
     environment: str
 
+
+class ReadinessResponse(BaseModel):
+    """Response returned after checking required infrastructure."""
+
+    status: Literal["ready", "not_ready"]
+    falkordb: Literal["healthy", "unhealthy"]
+    graph: str
