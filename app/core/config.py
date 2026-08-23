@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     falkordb_password: str | None = None
     falkordb_graph_name: str = "graphiti_memory"
     falkordb_connect_timeout: float = Field(default=3.0, gt=0)
+
+    # Gemini is used explicitly for every Graphiti AI component. Keeping these
+    # settings here prevents Graphiti from falling back to its OpenAI defaults.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_embedding_model: str = "gemini-embedding-001"
+
+    # The free Gemini tier has conservative rate limits. Serial execution is
+    # slower, but makes the local demo substantially more reliable.
+    semaphore_limit: int = Field(default=1, ge=1, le=10)
+    memory_search_limit: int = Field(default=5, ge=1, le=20)
+    chat_max_output_tokens: int = Field(default=1024, ge=128, le=8192)
 
 
 @lru_cache

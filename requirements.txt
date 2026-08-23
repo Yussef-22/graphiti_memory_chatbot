@@ -1,4 +1,4 @@
 fastapi==0.141.1
-graphiti-core[falkordb]==0.29.3
+graphiti-core[falkordb,google-genai]==0.29.3
 pydantic-settings==2.15.0
 uvicorn[standard]==0.52.3

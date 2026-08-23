@@ -1,20 +1,42 @@
 # Graphiti Memory Chatbot
 
 Backend de un chatbot con memoria temporal persistente, construido con FastAPI,
-Graphiti y FalkorDB.
+Graphiti, Google Gemini y FalkorDB.
 
 ## Estado del proyecto
 
-Fase 2 en progreso: base modular de FastAPI, FalkorDB persistente mediante
-Docker Compose y comprobación de disponibilidad de la base desde la API.
+La fase de memoria funcional está completa:
+
+- API modular con FastAPI y documentación Swagger.
+- FalkorDB persistente mediante Docker Compose.
+- Gemini como LLM, modelo de embeddings y reranker de Graphiti.
+- Memoria aislada por usuario.
+- Endpoints para guardar, buscar y utilizar recuerdos en un chat.
+- Pruebas automatizadas sin llamadas reales a servicios externos.
+
+## Qué hace cada componente
+
+- **FastAPI:** recibe las peticiones HTTP y valida sus datos.
+- **Gemini:** interpreta texto, genera respuestas y ayuda a ordenar recuerdos.
+- **Graphiti:** extrae entidades y relaciones, conserva su temporalidad y realiza
+  recuperación híbrida.
+- **FalkorDB:** persiste nodos, relaciones, episodios e índices del grafo.
+- **Docker Compose:** levanta FalkorDB de forma reproducible y conserva sus datos
+  en un volumen.
+
+Consulta [la arquitectura completa](docs/ARCHITECTURE.md) y el documento de
+[trade-offs técnicos](docs/TRADE_OFFS.md).
 
 ## Requisitos
 
 - Python 3.11 o superior
 - Git
 - Docker Desktop con WSL 2
+- Una API key gratuita de Google AI Studio
 
 ## Instalación en Windows PowerShell
+
+Desde la carpeta raíz del proyecto:
 
 ```powershell
 python -m venv .venv
@@ -24,25 +46,116 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 ```
 
-Si PowerShell impide activar el entorno virtual, ejecuta una sola vez en esa
-terminal:
+Si el entorno virtual ya existe, solo actívalo. Si PowerShell bloquea la
+activación, ejecuta una vez en esa terminal:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
+Completa en `.env`:
+
+```env
+GEMINI_API_KEY=tu_clave_real
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+SEMAPHORE_LIMIT=1
+```
+
+Nunca subas `.env` a GitHub. Puedes comprobar su exclusión con:
+
+```powershell
+git check-ignore .env
+```
+
+## Ejecutar FalkorDB
+
+Con Docker Desktop abierto:
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+El contenedor `graphiti-falkordb` debe aparecer como `healthy`. FalkorDB Browser
+queda disponible en http://localhost:3000.
+
 ## Ejecutar la API
+
+En otra terminal, dentro de la misma carpeta y con `(.venv)` visible:
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Después abre:
+Abre:
 
 - API: http://localhost:8000
-- Health check: http://localhost:8000/health
-- Readiness check: http://localhost:8000/ready
-- Documentación Swagger: http://localhost:8000/docs
+- Documentación interactiva: http://localhost:8000/docs
+- Liveness: http://localhost:8000/health
+- Readiness de FalkorDB: http://localhost:8000/ready
+
+## Endpoints de memoria
+
+### `POST /memory/episodes`
+
+Guarda una declaración del usuario. Graphiti la convierte en entidades y hechos
+temporales.
+
+```json
+{
+  "user_id": "yussef",
+  "content": "Practico natación cinco días por semana."
+}
+```
+
+### `POST /memory/search`
+
+Busca hechos relevantes solamente dentro de la memoria del usuario indicado.
+
+```json
+{
+  "user_id": "yussef",
+  "query": "¿Qué deporte practico?",
+  "limit": 5
+}
+```
+
+### `POST /chat`
+
+Busca recuerdos, se los proporciona a Gemini, genera una respuesta y después
+guarda el nuevo mensaje del usuario.
+
+```json
+{
+  "user_id": "yussef",
+  "message": "¿Qué actividad me recomendarías para hoy?"
+}
+```
+
+La respuesta incluye `memories_used` para demostrar qué hechos influyeron en la
+respuesta y `episode_uuid` para comprobar que el mensaje fue persistido.
+
+## Demostración recomendada
+
+1. Abre `/docs` y guarda dos declaraciones mediante `/memory/episodes`.
+2. Consulta una de ellas mediante `/memory/search`.
+3. Haz una pregunta relacionada en `/chat` y revisa `memories_used`.
+4. Cambia un hecho, por ejemplo de “trabajo en Atlas” a “ya no trabajo en Atlas”.
+5. Busca nuevamente y observa la información temporal en FalkorDB Browser.
+
+Cada `user_id` se transforma en un grafo como `graphiti_memory_yussef`. De esta
+manera, las búsquedas de un usuario no recuperan recuerdos de otro.
+
+También hay una demostración automatizada. Con Docker y Uvicorn ejecutándose,
+abre una tercera terminal y utiliza:
+
+```powershell
+.\scripts\demo.ps1
+```
+
+El script usa información ficticia, guarda un recuerdo, lo busca y después hace
+una pregunta al chatbot.
 
 ## Ejecutar las pruebas
 
@@ -50,48 +163,35 @@ Después abre:
 pytest
 ```
 
-## Ejecutar FalkorDB
+Las pruebas usan servicios falsos controlados. Por eso no consumen cuota de
+Gemini ni requieren que Docker esté funcionando.
 
-Con Docker Desktop abierto y su motor en ejecución:
+## Detener el proyecto
 
-```powershell
-docker compose config
-docker compose up -d
-docker compose ps
-```
-
-Después abre FalkorDB Browser en http://localhost:3000.
-
-La API distingue dos verificaciones:
-
-- `/health`: confirma que el proceso de FastAPI está vivo.
-- `/ready`: confirma que FastAPI también puede comunicarse con FalkorDB.
-
-Para detener el contenedor sin eliminar los datos:
+Detén Uvicorn con `Ctrl + C`. Después:
 
 ```powershell
 docker compose down
 ```
 
-> No uses `docker compose down -v` salvo que quieras eliminar también el
-> volumen y todos los datos almacenados en FalkorDB.
+El volumen permanece. No uses `docker compose down -v` salvo que quieras borrar
+todos los grafos y recuerdos.
 
-## Estructura actual
+## Estructura
 
 ```text
 app/
-├── api/        # Endpoints HTTP
-├── core/       # Configuración e infraestructura compartida
-├── models/     # Esquemas de entrada y salida
-├── services/   # Lógica de negocio e integraciones
-└── main.py     # Punto de entrada de FastAPI
-tests/          # Pruebas automatizadas
+├── api/
+│   ├── chat.py       # Endpoint del chatbot
+│   ├── health.py     # Liveness y readiness
+│   └── memory.py     # Guardado y búsqueda de recuerdos
+├── core/config.py    # Configuración tipada desde .env
+├── models/schemas.py # Contratos de entrada y salida
+├── services/
+│   ├── falkordb.py   # Comprobación ligera de infraestructura
+│   └── memory.py     # Orquestación Graphiti–Gemini–FalkorDB
+└── main.py           # Creación y ciclo de vida de FastAPI
+docs/                 # Arquitectura, notas y trade-offs
+scripts/demo.ps1      # Demostración automatizada de punta a punta
+tests/                # Pruebas automatizadas
 ```
-
-## Próximas fases
-
-1. Levantar FalkorDB mediante Docker Compose.
-2. Verificar persistencia y conectividad.
-3. Integrar Graphiti y crear sus índices.
-4. Implementar `/chat` y la memoria por usuario.
-5. Construir la demostración temporal y documentar trade-offs.
